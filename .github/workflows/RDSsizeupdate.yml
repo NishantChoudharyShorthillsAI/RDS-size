@@ -1,0 +1,64 @@
+name: Update RDS Instance Size
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Choose whether to increase or decrease"
+        required: true
+        type: choice
+        options:
+          - Increase
+          - Decrease
+      size:
+        description: "Select the new RDS size"
+        required: true
+        type: choice
+        options:
+          - db.t4g.micro
+          - db.t4g.large
+          - db.t4g.xlarge
+          - db.t3.large
+          - db.t3.xlarge
+
+jobs:
+  update-rds:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1  
+
+      - name: Get current RDS instance size
+        id: current
+        run: |
+          CURRENT_SIZE=$(aws rds describe-db-instances \
+            --db-instance-identifier test-jump-rds \
+            --query "DBInstances[0].DBInstanceClass" \
+            --output text)
+          echo "Current size: $CURRENT_SIZE"
+          echo "current_size=$CURRENT_SIZE" >> $GITHUB_OUTPUT
+
+      - name: Compare and update RDS
+        run: |
+          NEW_SIZE="${{ github.event.inputs.size }}"
+          CURRENT_SIZE="${{ steps.current.outputs.current_size }}"
+
+          echo "Requested new size: $NEW_SIZE"
+          echo "Current size: $CURRENT_SIZE"
+
+          if [ "$CURRENT_SIZE" == "$NEW_SIZE" ]; then
+            echo "RDS is already using $CURRENT_SIZE. No changes required."
+            exit 0
+          fi
+
+          echo "Updating RDS from $CURRENT_SIZE to $NEW_SIZE..."
+          aws rds modify-db-instance \
+            --db-instance-identifier test-jump-rds \
+            --db-instance-class "$NEW_SIZE" \
+            --apply-immediately
+
+          echo "RDS update initiated."
