@@ -29,18 +29,68 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-1   # Change to your region
+          aws-region: ap-south-1   # change region if needed
+
+      - name: Fetch Subnets of AZ1 & AZ2
+        id: get-subnets
+        run: |
+          echo "Fetching Subnet IDs from first two AZs..."
+
+          # Get AZ names
+          AZS=$(aws ec2 describe-availability-zones \
+            --query "AvailabilityZones[*].ZoneName" \
+            --output text)
+
+          AZ1=$(echo $AZS | awk '{print $1}')
+          AZ2=$(echo $AZS | awk '{print $2}')
+
+          echo "Selected AZ1: $AZ1"
+          echo "Selected AZ2: $AZ2"
+
+          # Get subnet for each AZ
+          SUBNET1=$(aws ec2 describe-subnets \
+            --filters "Name=availability-zone,Values=$AZ1" \
+            --query "Subnets[0].SubnetId" \
+            --output text)
+
+          SUBNET2=$(aws ec2 describe-subnets \
+            --filters "Name=availability-zone,Values=$AZ2" \
+            --query "Subnets[0].SubnetId" \
+            --output text)
+
+          echo "SUBNET1=$SUBNET1" >> $GITHUB_ENV
+          echo "SUBNET2=$SUBNET2" >> $GITHUB_ENV
+
+      - name: Fetch Default Security Group
+        id: get-sg
+        run: |
+          echo "Fetching Default Security Group..."
+
+          # Get VPC ID from SUBNET1
+          VPC_ID=$(aws ec2 describe-subnets \
+            --subnet-ids $SUBNET1 \
+            --query "Subnets[0].VpcId" \
+            --output text)
+
+          # Get Default Security Group for that VPC
+          DEFAULT_SG=$(aws ec2 describe-security-groups \
+            --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=default" \
+            --query "SecurityGroups[0].GroupId" \
+            --output text)
+
+          echo "DEFAULT_SG=$DEFAULT_SG" >> $GITHUB_ENV
 
       - name: Launch EC2 Instance
         run: |
           echo "Launching EC2 Instance with AMI: ${{ github.event.inputs.ami_id }} and Type: ${{ github.event.inputs.instance_type }}"
-          
+          echo "Using Subnet: $SUBNET1 and Security Group: $DEFAULT_SG"
+
           INSTANCE_ID=$(aws ec2 run-instances \
             --image-id ${{ github.event.inputs.ami_id }} \
             --instance-type ${{ github.event.inputs.instance_type }} \
-            --key-name my-keypair \ # Change with your key pair
-            --security-group-ids sg-0123456789abcdef0 \ # Replace with your SG
-            --subnet-id subnet-0123456789abcdef0 \ # Replace with subnet
+            --key-name my-keypair \   # replace with your key
+            --security-group-ids $DEFAULT_SG \
+            --subnet-id $SUBNET1 \
             --associate-public-ip-address \
             --query 'Instances[0].InstanceId' \
             --output text)
