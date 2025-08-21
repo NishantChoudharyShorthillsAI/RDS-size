@@ -40,27 +40,17 @@ jobs:
           AZS=$(aws ec2 describe-availability-zones \
             --query "AvailabilityZones[*].ZoneName" \
             --output text)
-
           AZ1=$(echo $AZS | awk '{print $1}')
-          AZ2=$(echo $AZS | awk '{print $2}')
-
+          
           echo "Selected AZ1: $AZ1"
-          echo "Selected AZ2: $AZ2"
-
           # Get subnet for each AZ
+          
           SUBNET1=$(aws ec2 describe-subnets \
             --filters "Name=availability-zone,Values=$AZ1" \
             --query "Subnets[0].SubnetId" \
             --output text)
-
-          SUBNET2=$(aws ec2 describe-subnets \
-            --filters "Name=availability-zone,Values=$AZ2" \
-            --query "Subnets[0].SubnetId" \
-            --output text)
-
           echo "SUBNET1=$SUBNET1" >> $GITHUB_ENV
-          echo "SUBNET2=$SUBNET2" >> $GITHUB_ENV
-
+          
       - name: Fetch Default Security Group
         id: get-sg
         run: |
@@ -88,7 +78,7 @@ jobs:
           INSTANCE_ID=$(aws ec2 run-instances \
             --image-id ${{ github.event.inputs.ami_id }} \
             --instance-type ${{ github.event.inputs.instance_type }} \
-            --key-name mykey \   # replace with your key
+            --key-name mykey \ 
             --security-group-ids $DEFAULT_SG \
             --subnet-id $SUBNET1 \
             --associate-public-ip-address \
