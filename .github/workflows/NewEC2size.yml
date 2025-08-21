@@ -1,0 +1,57 @@
+name: Launch EC2 from AMI
+
+on:
+  workflow_dispatch:
+    inputs:
+      ami_id:
+        description: 'Enter the AMI ID (e.g. ami-0abcdef1234567890)'
+        required: true
+      instance_type:
+        description: 'Choose EC2 Instance Type'
+        required: true
+        default: 't2.micro'
+        type: choice
+        options:
+          - t2.micro
+          - t2.large
+          - t2.xlarge
+          - t2.2xlarge
+
+jobs:
+  launch-ec2:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1   # Change to your region
+
+      - name: Launch EC2 Instance
+        run: |
+          echo "Launching EC2 Instance with AMI: ${{ github.event.inputs.ami_id }} and Type: ${{ github.event.inputs.instance_type }}"
+          
+          INSTANCE_ID=$(aws ec2 run-instances \
+            --image-id ${{ github.event.inputs.ami_id }} \
+            --instance-type ${{ github.event.inputs.instance_type }} \
+            --key-name my-keypair \ # Change with your key pair
+            --security-group-ids sg-0123456789abcdef0 \ # Replace with your SG
+            --subnet-id subnet-0123456789abcdef0 \ # Replace with subnet
+            --associate-public-ip-address \
+            --query 'Instances[0].InstanceId' \
+            --output text)
+
+          echo "Launched EC2 Instance with ID: $INSTANCE_ID"
+          echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
+
+      - name: Get Public IP
+        run: |
+          PUBLIC_IP=$(aws ec2 describe-instances \
+            --instance-ids $INSTANCE_ID \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' \
+            --output text)
+          echo "Public IP: $PUBLIC_IP"
