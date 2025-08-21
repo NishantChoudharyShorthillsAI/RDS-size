@@ -78,7 +78,8 @@ jobs:
           INSTANCE_ID=$(aws ec2 run-instances \
             --image-id ${{ github.event.inputs.ami_id }} \
             --instance-type ${{ github.event.inputs.instance_type }} \
-            --key-name mykey \ 
+            --key-name mykey \
+            --security-group-ids $DEFAULT_SG \
             --subnet-id $SUBNET1 \
             --associate-public-ip-address \
             --query 'Instances[0].InstanceId' \
